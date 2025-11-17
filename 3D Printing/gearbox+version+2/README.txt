@@ -1,0 +1,1 @@
+3D printable high torque servo/gearbox version 2 by Bribro12 on Thingiverse: https://www.thingiverse.com/thing:4547703
