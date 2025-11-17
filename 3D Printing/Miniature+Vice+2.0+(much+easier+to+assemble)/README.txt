@@ -1,0 +1,1 @@
+Miniature Vice 2.0 (much easier to assemble) by HD_Creator on Thingiverse: https://www.thingiverse.com/thing:4734788
