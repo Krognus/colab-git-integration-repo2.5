@@ -1,0 +1,1 @@
+Fully 3D-printable turntable by Bribro12 on Thingiverse: https://www.thingiverse.com/thing:3723618
