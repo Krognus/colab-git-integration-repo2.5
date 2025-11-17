@@ -1,0 +1,1 @@
+Print-in-place spring clip by polymaker on Thingiverse: https://www.thingiverse.com/thing:4622296
