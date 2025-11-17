@@ -1,0 +1,1 @@
+Gyroscope drone gimbal by Makers3d on Thingiverse: https://www.thingiverse.com/thing:4862953
