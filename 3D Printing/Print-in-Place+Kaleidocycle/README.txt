@@ -1,0 +1,1 @@
+Print-in-Place Kaleidocycle by ecoiras on Thingiverse: https://www.thingiverse.com/thing:4761150
