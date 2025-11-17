@@ -1,0 +1,540 @@
+/*********************************************************************
+
+Grab Toy ++
+
+Introduction:
+-------------
+Had lots of problems printing the amazing Scissor Snake family
+(https://www.thingiverse.com/thing:1902131) with hinges fusing 
+together and some parts snapping. So I tried to design a simpler 
+hinge that could also be printed in place using OpenSCAD, where 
+I could play with different spacings between the moving parts. 
+Then I did the code for the rest of the toy, learning OpenSCAD 
+along the way. Very cool software!
+
+Tips:
+-----
+Instead of printing the biggest grabtoy here and be disappointed 
+it fused together, you can first check which spacing works better
+for your printer settings by printing the HingeSlackTest() model.
+
+The default slack of 0.5 is a good starting point. The lowest I 
+managed when printing PLA at 0.2mm resolution with my Anycubic 
+I3+ at normal (i.e. fast) speed was 0.35, but only at very low 
+temperatures (190º) which results in poorer surface finish.
+
+I found that robustness of the toys varied a lot depending on 
+the slicing software, with some not putting extra material in 
+thin regions that are structurally important (mostly the cores 
+and shoulders of the hinges). Playing around I realized that 
+some carefully placed thin slits forced the slicers to create 
+extra walls, thus reinforcing some key areas. Enable or disable
+them by setting REINFORCE_CORE and REINFORCE_SHOULDER to true 
+or false.
+
+Main routines:
+--------------
+HingeSlackTest() generates a 4-hinge test model with slacks of 
+0.6, 0.5, 0.4 and 0.3. Print it to see how small can you set the
+spacing for the hinges before they fuse together. Then set the 
+slack parameter accordingly and render one of the grabtoy models
+below.
+
+GrabToyPlusPlus4hinges() generates the simplest grab toy model, 
+with just one expansion frame.
+
+GrabToyPlusPlus10hinges() makes a bigger grab toy, with 3 
+expansion frames.
+
+NOTES:
+------
+- 07/JAN/2018: First version. E. Coiras.
+
+*********************************************************************/
+
+//global settings
+//$fn = 25; //preview quaity
+$fn = 50; //moderate quality
+//$fn = 100; //high quality
+iota = 0.01; //a small quantity
+REINFORCE_CORE = true; //add extra material to hinge cores
+REINFORCE_SHOULDER = false; //add extra material to shoulders
+
+//hinge core parameters
+cr0 = 3; //inner radius
+cr1 = 7; //outer radius
+ch = 18; //height
+
+//spacing between parts (small => tighter joints but hinges may stick; big => hinges won't stick but looser joints)
+//slack = 0.6; //wide spacing; for low-res printing or if you have problems with hinges sticking together
+//slack = 0.5; //moderate spacing
+//slack = 0.4; //fine spacing
+slack = 0.3; //very fine; make sure you are printing at high resolution
+
+//arm parameters
+totalArmLength = 10;
+shoulderLength = 2.5;
+
+//handle parameters
+wRing = 4;
+hRing = ch;
+rRing = 14;
+armlhandle = 12;
+ringAspectRatio = 4/3;
+ringTilt = 30; //degrees
+baseWidth = 40; //degrees
+
+//teeth parameters
+rTooth0 = 0.2; //tip width
+rTooth1 = 1; //base width
+hTooth = 1; //height
+wTooth = ch; //depth
+nTeethUp = 6; //number of teeth for the upper jaw
+nTeethLow = 5; //number of teeth for the lower jaw
+
+//handle modules
+module fingerHole(wh, hh, rh, sc, ang) {
+  rotate([0,0,-ang])
+    scale([1,sc,1])
+      rotate_extrude(convexity = 10)
+        translate([rh,0,0])
+          resize([wh,hh,iota])
+            circle();
+}
+
+module handleBase(wh, hh, rh, sc, ang, baseang) {
+  rotate([0,0,-ang])
+    scale([1,sc,1])
+      rotate([0,0,-baseang/2-90])
+        rotate_extrude(angle = baseang, convexity = 10)
+          translate([rh,0,0])
+            resize([wh,hh,iota])
+              circle();
+}
+
+module halfHandle(arml,ch,cr0,cr1,slack,wh, hh, rh, sc, ang, baseang) {
+  dx = cr1;
+  union() {
+    hull() {
+      translate([rh+dx-wh/2,1.75*rh*sc + arml,0]) {
+        handleBase(wh,hh,rh,sc,ang,baseang);
+      }
+      translate([cr1/2+slack/2,cr1+arml,0])
+        cube([cr1-slack,iota,ch], center = true);
+    }
+    translate([rh+dx-wh/2,1.75*rh*sc + arml,0]) {
+      fingerHole(wh,hh,rh,sc,ang);
+    }
+  }
+}
+
+//jaw modules
+module tooth(r0,r1,h,w) {
+  hull() {
+    translate([h/2,0,0]) cube([iota,2*r0,w], center = true);
+    translate([-h/2,0,0]) cube([iota,2*r1,w], center = true);
+  }
+}
+
+module teeth(r0,r1,h,w,n) {
+  dy = 2*(r1 + r0);
+  translate([0,-dy*(n-1)/2,0])
+    for(k = [0:n-1]) {
+      translate([0,k*dy,0])
+        tooth(r0,r1,h,w);
+    }
+}
+
+module jaw(jl,r0,r1,h,w,n, cr1,ch,al,slack) {
+  union() {
+    rotate([0,0,-45])
+      translate([0,jl,0])
+        teeth(r0,r1,h,w,n);
+    hull() {
+      rotate([0,0,-32.5])
+        translate([-h/2,jl-n*(r0+r1)-(jl-al)/4,0])
+          cube([iota,n*2*(r0+r1)/2,w],center = true);
+      translate([cr1/2-slack,cr1+al,0]) cube([3*cr1/4,iota,ch], center = true);
+    }
+    hull() {
+      rotate([0,0,-45])
+        translate([-h/2,jl,0])
+          cube([iota,n*2*(r0+r1),w],center = true);
+      rotate([0,0,-32.5])
+        translate([-h/2,jl-n*(r0+r1)-(jl-al)/4,0])
+          cube([iota,n*2*(r0+r1)/2,w],center = true);
+    }
+  }
+}
+
+module jaws(jl,r0,r1,h,w,nupper,nlower, cr1,ch,al,slack) {
+  rotate([0,0,-44.5]) //uncomment to check closed position
+  jaw(jl,r0,r1,h,w,nupper, cr1,ch,al,slack);
+  rotate([0,0,44.5]) //uncomment to check closed position
+  scale([1,-1,1])
+    jaw(jl,r0,r1,h,w,nlower, cr1,ch,al,slack);
+}
+
+//hinge modules
+module bottomShoulder(al,ch,cr0,cr1,slack) {
+  module bS() {
+    union() {
+      hull() {
+        translate([cr1/2-slack/2,0,ch/4]) cylinder(ch/2,iota,cr1/2, center = true);
+        translate([cr1/2,2*cr1/3,0]) translate([-(cr1-slack)/2,0,0]) rotate([0,0,22.5]) translate([cr1/2,0,0.2*ch]) cube([cr1,iota,0.6*ch], center = true);
+      }
+      hull() {
+        translate([cr1/2,cr1+al,0]) cube([cr1-slack,iota,ch], center = true);
+        translate([cr1/2,2*cr1/3,0]) translate([-(cr1-slack)/2,0,0]) rotate([0,0,22.5]) translate([cr1/2,0,0.2*ch]) cube([cr1,iota,0.6*ch], center = true);
+      }
+    }
+  }
+  
+  if (REINFORCE_SHOULDER)
+    difference() {
+      bS();
+      translate([cr1/2-slack/2,(al+cr1)/2,ch/4]) cube([slack/4,al+cr1+slack,2*ch],center=true);
+    }
+  else
+    bS();
+}
+
+module topShoulder(al,ch,cr0,cr1,slack) {
+  module tS() {
+    union() {
+      hull() {
+        union() {
+          translate([cr1/2-slack/2,0,ch/2]) cylinder(h = ch/4,iota,cr1/2, center = true);
+          difference() {
+            translate([cr1/2-slack/2,0,ch/2]) sphere(cr1/2);
+            translate([cr1/2-slack/2,0,ch/4]) cube([cr1,cr1,cr1], center = true);
+          }
+        }
+        translate([cr1/2,2*cr1/3,ch/8]) translate([-(cr1-slack)/2,0,0]) rotate([0,0,22.5]) translate([cr1/2,0,ch/4+slack/4]) cube([cr1,iota,0.6*ch], center = true);
+      }
+      hull() {
+        translate([cr1/2,cr1+al,0]) cube([cr1-slack,iota,ch], center = true);
+        translate([cr1/2,2*cr1/3,ch/8]) translate([-(cr1-slack)/2,0,0]) rotate([0,0,22.5]) translate([cr1/2,0,ch/4+slack/4]) cube([cr1,iota,0.6*ch], center = true);
+      }
+    }
+  }
+  
+  if (REINFORCE_SHOULDER)
+    difference() {
+      ts();
+      translate([cr1/2-slack/2,(al+cr1)/2,ch/4]) cube([slack/4,al+cr1+slack,2*ch],center=true);
+    }
+  else
+    tS();
+}
+
+module endHingeBottom(al,ch,cr0,cr1,slack,angle,doubleSided) {
+  difference() {
+    union() {
+      union() {
+        translate([slack/2,0,0]) scale([1,-1,-1]) bottomShoulder(al,ch,cr0,cr1,slack);
+        if (doubleSided) {
+          rotate([0, 0, -angle]) translate([slack/2,0,0]) scale([1,1,-1]) bottomShoulder(al,ch,cr0,cr1,slack);
+        }
+      }
+      cylinder(ch, cr1, cr0, center = true);
+    }
+    union() {
+      translate([0,0,ch/6]) cylinder(2*ch/3+iota, cr0+slack, cr1+slack, center = true);
+      translate([0,0,-ch/3]) cylinder(ch/3+iota, (cr0+cr1)/2+slack, cr0+slack, center = true);
+    }
+  }
+}
+
+module endHingeTop(al,ch,cr0,cr1,slack,angle,doubleSided) {
+  union() {
+    if (REINFORCE_CORE)
+      difference() {
+        union() {
+          translate([0,0,ch/6]) cylinder(2*ch/3, cr0, cr1, center = true);
+          translate([0,0,-ch/3]) cylinder(ch/3, (cr0+cr1)/2, cr0, center = true);
+        }
+        //to make waist thicker on print
+        translate([0,0,-slack]) union() {
+          cube([cr0,slack/4,ch], center = true);
+          cube([slack/4,cr0,ch], center = true);
+        }
+      }
+    else
+      union() {
+        translate([0,0,ch/6]) cylinder(2*ch/3, cr0, cr1, center = true);
+        translate([0,0,-ch/3]) cylinder(ch/3, (cr0+cr1)/2, cr0, center = true);
+      }
+    translate([-slack/2,0,0]) {
+      scale([-1,-1,1]) {
+        topShoulder(al,ch,cr0,cr1,slack);
+      }
+    }
+    if (doubleSided) {
+      rotate([0, 0, angle])
+      translate([-slack/2,0,0]) {
+        scale([-1,1,1]) {
+          topShoulder(al,ch,cr0,cr1,slack);
+        }
+      }
+    }
+  }
+}
+
+module endHinge(arml,shoulderl,ch,cr0,cr1,slack,openangle,doubleSided) {
+  union() {
+    endHingeBottom(shoulderl,ch,cr0,cr1,slack,openangle,doubleSided);
+    translate([(cr1+slack)/2,-cr1-(arml-shoulderl)/2-shoulderl,0]) cube([cr1-slack,arml-shoulderl,ch], center = true);
+  }
+  rotate([0,0,-openangle]) {
+    union() {
+      endHingeTop(shoulderl,ch,cr0,cr1,slack,openangle,doubleSided);
+      translate([-(cr1+slack)/2,-cr1-(arml-shoulderl)/2-shoulderl,0]) cube([cr1-slack,arml-shoulderl,ch], center = true);
+    }
+  }
+}
+
+module hingeBottom(al,ch,cr0,cr1,slack) {
+  difference() {
+    union() {
+      union() {
+        translate([slack/2,0,0]) scale([1,-1,-1]) bottomShoulder(al,ch,cr0,cr1,slack);
+        translate([-slack/2,0,0]) scale([-1,1,-1]) bottomShoulder(al,ch,cr0,cr1,slack);
+      }
+      cylinder(ch, cr1, cr0, center = true);
+    }
+    union() {
+      translate([0,0,ch/6]) cylinder(2*ch/3+iota, cr0+slack, cr1+slack, center = true);
+      translate([0,0,-ch/3]) cylinder(ch/3+iota, (cr0+cr1)/2+slack, cr0+slack, center = true);
+    }
+  }
+}
+
+module hingeTop(al,ch,cr0,cr1,slack) {
+  union() {
+    if (REINFORCE_CORE)
+      difference() { //to make waist thicker on print
+        union() {
+          translate([0,0,ch/6]) cylinder(2*ch/3, cr0, cr1, center = true);
+          translate([0,0,-ch/3]) cylinder(ch/3, (cr0+cr1)/2, cr0, center = true);
+        }
+        //to make waist thicker on print
+        translate([0,0,-slack]) union() {
+          cube([cr0,slack/4,ch], center = true);
+          cube([slack/4,cr0,ch], center = true);
+        }
+      }
+    else
+      union() {
+        translate([0,0,ch/6]) cylinder(2*ch/3, cr0, cr1, center = true);
+        translate([0,0,-ch/3]) cylinder(ch/3, (cr0+cr1)/2, cr0, center = true);
+      }
+    translate([-slack/2,0,0]) {
+      scale([-1,-1,1]) {
+        topShoulder(al,ch,cr0,cr1,slack);
+      }
+    }
+    translate([slack/2,0,0]) {
+      topShoulder(al,ch,cr0,cr1,slack);
+    }
+  }
+}
+
+module hinge(arml,shoulderl,ch,cr0,cr1,slack,openangle) {
+  union() {
+    hingeBottom(shoulderl,ch,cr0,cr1,slack);
+    translate([-(cr1+slack)/2,cr1+(arml-shoulderl)/2+shoulderl,0]) cube([cr1-slack,arml-shoulderl,ch], center = true);
+    translate([(cr1+slack)/2,-cr1-(arml-shoulderl)/2-shoulderl,0]) cube([cr1-slack,arml-shoulderl,ch], center = true);
+  }
+  rotate([0,0,-openangle]) {
+    union() {
+      hingeTop(shoulderl,ch,cr0,cr1,slack);
+      translate([-(cr1+slack)/2,-cr1-(arml-shoulderl)/2-shoulderl,0]) cube([cr1-slack,arml-shoulderl,ch], center = true);
+      translate([(cr1+slack)/2,cr1+(arml-shoulderl)/2+shoulderl,0]) cube([cr1-slack,arml-shoulderl,ch], center = true);
+    }
+  }
+}
+
+//hinge slack test model
+module HingeSlackTest() {
+  dy = totalArmLength+cr1;
+  dx = cr1 + slack;
+  textheight = 1.0;
+  union() {
+    //slack = 0.6
+    translate([-dx,-dy,0])
+      scale([1,-1,1])
+        endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, 0.6, 0);
+    translate([-dx/2,-dy,ch/2-iota])
+      rotate([0,0,90])
+        linear_extrude(height = textheight)
+          text(text = "0.6", font = "Arial Narrow:style=Bold", size = 4.5, halign = "center", valign = "center");
+    
+    //slack = 0.5
+    translate([0,dy,0])
+      scale([-1,1,1])
+        endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, 0.5, 0);
+    translate([-dx/2,dy,ch/2-iota])
+      rotate([0,0,90])
+        linear_extrude(height = textheight)
+          text(text = "0.5", font = "Arial Narrow:style=Bold", size = 4.5, halign = "center", valign = "center");
+
+    //slack = 0.4
+    translate([dx,-dy,0])
+      scale([1,-1,1])
+        endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, 0.4, 0);
+    translate([3*dx/2,-dy,ch/2-iota])
+      rotate([0,0,90])
+        linear_extrude(height = textheight)
+          text(text = "0.4", font = "Arial Narrow:style=Bold", size = 4.5, halign = "center", valign = "center");
+
+    //slack = 0.3
+    translate([2*dx,dy,0])
+      scale([-1,1,1])
+        endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, 0.3, 0);
+    translate([3*dx/2,dy,ch/2-iota])
+      rotate([0,0,90])
+        linear_extrude(height = textheight)
+          text(text = "0.3", font = "Arial Narrow:style=Bold", size = 4.5, halign = "center", valign = "center");
+
+  }
+}
+
+//short grab toy
+module GrabToyPlusPlus4hinges() {
+  dy = totalArmLength+cr1;
+  dx = cr1 + slack;
+  union() {
+    translate([0,2*dy,0]) scale([-1,1,1]) endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, slack, 0);
+    translate([dx,0,0]) {
+      hinge(totalArmLength,shoulderLength, ch, cr0, cr1, slack, 0);
+      //rotate([0,0,-45]) //uncomment to check closed position
+      halfHandle(totalArmLength,ch,cr0,cr1,slack,wRing, hRing, rRing, ringAspectRatio, ringTilt, baseWidth);
+      rotate([180,0,0])
+        difference() {
+          halfHandle(totalArmLength,ch,cr0,cr1,slack,wRing, hRing, rRing, ringAspectRatio, ringTilt, baseWidth);
+              union() {
+                translate([0,0,ch/6]) cylinder(2*ch/3+iota, cr0+slack, cr1+slack, center = true);
+                translate([0,0,-ch/3]) cylinder(ch/3+iota, (cr0+cr1)/2+slack, cr0+slack, center = true);
+              }
+            }
+    }
+    translate([-dx,0,0]) hinge(totalArmLength,shoulderLength, ch, cr0, cr1, slack, 0);
+    translate([0,-2*dy,0]) scale([1,-1,1]) endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, slack, 0);
+    translate([-dx,0,0]) scale([-1,1,1]) jaws(3*totalArmLength,rTooth0,rTooth1,hTooth,wTooth,nTeethUp,nTeethLow, cr1,ch,totalArmLength,slack);
+    
+    //text
+    textheight = 1.0;
+    
+    //GT
+    translate([dx/2,-dy,ch/2-iota])
+    rotate([0,0,90])
+    color("red")
+    linear_extrude(height = textheight) {
+      text(text = "GT", font = "Arial Narrow:style=Bold", size = 4.5, halign = "center", valign = "center");
+    }
+    
+    //++
+    translate([dx/2,dy,ch/2-iota])
+    rotate([0,0,90])
+    color("red")
+    linear_extrude(height = textheight) {
+      text(text = "++", font = "Arial Narrow:style=Bold", size = 4.5, halign = "center", valign = "center");
+    }
+  }
+}
+
+//long grab toy
+module GrabToyPlusPlus10hinges() {
+  dy = totalArmLength+cr1;
+  dx = cr1 + slack;
+  union() {
+    translate([dx,0,0]) {
+      hinge(totalArmLength,shoulderLength, ch, cr0, cr1, slack, 0);
+      //rotate([0,0,-45]) //uncomment to check closed position
+      halfHandle(totalArmLength,ch,cr0,cr1,slack,wRing, hRing, rRing, ringAspectRatio, ringTilt, baseWidth);
+      rotate([180,0,0])
+        difference() {
+          halfHandle(totalArmLength,ch,cr0,cr1,slack,wRing, hRing, rRing, ringAspectRatio, ringTilt, baseWidth);
+              union() {
+                translate([0,0,ch/6]) cylinder(2*ch/3+iota, cr0+slack, cr1+slack, center = true);
+                translate([0,0,-ch/3]) cylinder(ch/3+iota, (cr0+cr1)/2+slack, cr0+slack, center = true);
+              }
+            }
+    }
+    
+    translate([0,2*dy,0]) scale([-1,1,1]) endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, slack, 0);
+    translate([-2*dx,2*dy,0]) scale([-1,1,1]) endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, slack, 0);
+    translate([-4*dx,2*dy,0]) scale([-1,1,1]) endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, slack, 0);
+
+    translate([-dx,0,0]) hinge(totalArmLength,shoulderLength, ch, cr0, cr1, slack, 0);
+    translate([-3*dx,0,0]) hinge(totalArmLength,shoulderLength, ch, cr0, cr1, slack, 0);
+    translate([-5*dx,0,0]) hinge(totalArmLength,shoulderLength, ch, cr0, cr1, slack, 0);
+    
+    translate([0,-2*dy,0]) scale([1,-1,1]) endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, slack, 0);
+    translate([-2*dx,-2*dy,0]) scale([1,-1,1]) endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, slack, 0);
+    translate([-4*dx,-2*dy,0]) scale([1,-1,1]) endHinge(totalArmLength+iota,shoulderLength+iota, ch, cr0, cr1, slack, 0);
+
+    translate([-5*dx,0,0]) scale([-1,1,1]) jaws(3*totalArmLength,rTooth0,rTooth1,hTooth,wTooth,nTeethUp,nTeethLow, cr1,ch,totalArmLength,slack);
+    
+    //text
+    textheight = 1.0;
+    
+    //GT
+    translate([dx/2,-dy,ch/2-iota])
+    rotate([0,0,90])
+    color("red")
+    linear_extrude(height = textheight) {
+      text(text = "GT", font = "Arial Narrow:style=Bold", size = 4.5, halign = "center", valign = "center");
+    }
+    
+    //++
+    translate([dx/2,dy,ch/2-iota])
+    rotate([0,0,90])
+    color("red")
+    linear_extrude(height = textheight) {
+      text(text = "++", font = "Arial Narrow:style=Bold", size = 4.5, halign = "center", valign = "center");
+    }
+  }
+}
+
+
+
+module EnderBedSpringClip() {
+  difference() {
+    union() {
+      rotate([0, 0, -67.5])
+      difference() {
+        endHinge(totalArmLength+10+iota,shoulderLength+iota, ch, cr0, cr1, slack, 45, true);
+        translate([0.3, -12, 0]) rotate([0, 90, 0]) {
+          translate([0, 0, -iota]) cylinder(3 + iota, 4.5, 4.5, $fn=50, center=false);
+        }
+        rotate([0, 0, -45]) translate([-3.3, -12, 0]) rotate([0, 90, 0]) {
+          translate([0, 0, iota]) cylinder(3 + iota, 4.5, 4.5, $fn=50, center=false);
+        }
+      }
+      
+      translate([-7, 0, 0]) {
+        jaws(3*totalArmLength,rTooth0,rTooth1,hTooth,wTooth,nTeethUp,nTeethLow,cr1,ch,totalArmLength,slack);
+      }
+    }
+
+    translate([0, 10, -15]) cube([100, 100, 100]);
+    translate([-30, 12, -15]) cube([100, 100, 100]);
+    scale([1, -1, 1]) translate([0, 10, -15]) cube([100, 100, 100]);
+    scale([1, -1, 1]) translate([-30, 12, -15]) cube([100, 100, 100]);
+    translate([-20, -20, ch / 2]) cube([100, 100, 100]);
+  }
+  
+  for(i=[-1:2:1])
+  for(j=[-11.5:-1.75:-24])
+  translate([j, i * 12, 0]) {
+    cylinder(ch - 1, r1=0.5, r2=0.5, center=true);
+    for(k=[-1:2:1]) translate([0, 0, k * (ch - 1) / 2]) sphere(0.5);
+  }
+}
+
+//Main routine (uncomment the one you want to generate):
+EnderBedSpringClip();
+//GrabToyPlusPlus10hinges();
+//HingeSlackTest();
