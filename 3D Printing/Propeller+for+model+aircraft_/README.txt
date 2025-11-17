@@ -1,0 +1,1 @@
+Propeller for model aircraft. by LiViS on Thingiverse: https://www.thingiverse.com/thing:2378965
