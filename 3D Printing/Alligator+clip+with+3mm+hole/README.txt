@@ -1,0 +1,1 @@
+Alligator clip with 3mm hole by Spiderpiggie on Thingiverse: https://www.thingiverse.com/thing:4836198
