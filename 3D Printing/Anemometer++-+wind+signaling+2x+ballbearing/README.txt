@@ -1,0 +1,1 @@
+Anemometer  - wind signaling 2x ballbearing by BHMarten on Thingiverse: https://www.thingiverse.com/thing:4975134
